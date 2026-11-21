@@ -1,0 +1,4 @@
+﻿Kich_ban,xA_cuoi,xD_cuoi,xC_cuoi,P_tan_cong_thang,Eigenvalues_J,Ket_luan_ESS
+"KB1: Hien trang ENS (c_v=1.5, alpha=0.45)",0.0,0.0,1.0,0.9997,"-4.054, -3.355",On dinh ESS
+KB2: Ca map thao tung uy quyen (alpha=0.65),0.0,0.0,1.0,0.9997,"-4.154, -3.455",On dinh ESS
+"KB3: Hoan gas & Tran uy quyen (c_v=0.15, alpha=0.20)",0.1308,0.8692,0.0,0.0054,"-0.037, -0.152",On dinh ESS
