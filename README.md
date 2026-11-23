@@ -32,7 +32,7 @@ btl-blockchain-dao/
 
 ---
 
-### 2. Quy trình thực hiện từ đầu đến cuối
+### 2. Quy trình thực hiện 
 
 #### Giai đoạn 1: Thu thập dữ liệu quản trị thực tế & Chạy mô phỏng (Off-chain / Python)
 
@@ -111,3 +111,4 @@ btl-blockchain-dao/
   - *Kịch bản hoàn gas & hạn chế lôi kéo (c<sub>v</sub> = 0,15; α = 0,20):* Hệ hội tụ về trạng thái cân bằng ESS an toàn (x<sub>A</sub> = 13,08%; x<sub>D</sub> = 86,92%; x<sub>C</sub> = 0%), xác suất tấn công giảm còn **0,54%**.
 - **Kết quả mô phỏng mạng lưới 1.000 vòng trên 447 ví thật:** Do phân phối token thực tế bị phân hóa "cá mập" cực đoan, giải pháp hoàn gas kết hợp **Trần ủy quyền 8%** giúp giảm tỷ lệ tấn công thành công từ **99,80%** xuống **77,20%** và giảm hệ số Gini hiệu dụng từ `0,9549` xuống `0,9207`.
 - **Giải thích ranh giới On-chain vs Off-chain:** Thực nghiệm trên Remix cho thấy mỗi giao dịch `delegate` (kèm duyệt vòng lặp phát hiện chu trình) và `vote` (đệ quy tính tổng quyền lực cây ủy quyền) tiêu tốn hàng chục nghìn đơn vị Gas. Do đó, việc chạy mô phỏng tiến hóa 1.000 vòng trên đồ thị 447 nút không thể thực thi trực tiếp trên EVM (vượt *Block Gas Limit* và thiếu tính toán số thực/ngẫu nhiên), dẫn tới kiến trúc chuẩn cho DAO thực tế là **Mô phỏng & giám sát rủi ro Off-chain kết hợp Thực thi bỏ phiếu & lưu trữ trạng thái On-chain**.
+
