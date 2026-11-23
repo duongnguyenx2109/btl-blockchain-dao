@@ -30,27 +30,7 @@ def gini_coefficient(values: np.ndarray) -> float:
     return float(np.sum((2 * idx - n - 1) * arr) / (n * np.sum(arr)))
 
 @st.cache_data(show_spinner=False)
-def load_local_or_default_data():
-    voters_path = "data/real_dao_voters.csv"
-    proposals_path = "data/real_dao_proposals.csv"
-    if os.path.exists(voters_path):
-        df_voters = pd.read_csv(voters_path)
-        df_proposals = pd.read_csv(proposals_path) if os.path.exists(proposals_path) else pd.DataFrame()
-        return df_voters, df_proposals, "ENS DAO (ens.eth - Dữ liệu lưu cục bộ)"
-    # Fallback nếu chạy độc lập chưa có file CSV
-    rng = np.random.default_rng(42)
-    vp = (rng.pareto(a=1.35, size=300) + 1.0) * 1000.0
-    part = rng.uniform(0.04, 0.85, size=300)
-    df_voters = pd.DataFrame({
-        "voter": [f"0x{i:040x}" for i in range(300)],
-        "max_vp": np.sort(vp)[::-1],
-        "avg_vp": np.sort(vp)[::-1],
-        "proposals_voted": np.maximum(1, (part * 25).astype(int)),
-        "participation_rate": part
-    })
-    return df_voters, pd.DataFrame(), "Dữ liệu mô phỏng Pareto mặc định"
-
-def fetch_live_snapshot_data(space: str, limit: int = 20):
+def fetch_live_snapshot_data(space: str, limit: int = 25):
     q_prop = """
     query Proposals($space: String!, $first: Int!) {
       proposals(first: $first, where: { space_in: [$space], state: "closed" }, orderBy: "created", orderDirection: desc) {
@@ -58,7 +38,11 @@ def fetch_live_snapshot_data(space: str, limit: int = 20):
       }
     }
     """
-    r1 = requests.post(SNAPSHOT_GRAPHQL_URL, json={"query": q_prop, "variables": {"space": space, "first": limit}}, timeout=25)
+    r1 = requests.post(
+        SNAPSHOT_GRAPHQL_URL,
+        json={"query": q_prop, "variables": {"space": space, "first": limit}},
+        timeout=25
+    )
     r1.raise_for_status()
     proposals = r1.json()["data"]["proposals"]
     if not proposals:
@@ -75,14 +59,23 @@ def fetch_live_snapshot_data(space: str, limit: int = 20):
     }
     """
     all_votes = []
-    for skip in range(0, 3000, 1000):
-        r2 = requests.post(SNAPSHOT_GRAPHQL_URL, json={"query": q_votes, "variables": {"pids": prop_ids, "first": 1000, "skip": skip}}, timeout=25)
+    # Đồng bộ tham số 25 đề xuất & tối đa 5.000 phiếu giống hệt file 01_fetch_data.py
+    for skip in range(0, 5000, 1000):
+        r2 = requests.post(
+            SNAPSHOT_GRAPHQL_URL,
+            json={"query": q_votes, "variables": {"pids": prop_ids, "first": 1000, "skip": skip}},
+            timeout=25
+        )
         r2.raise_for_status()
         batch = r2.json()["data"]["votes"]
         if not batch:
             break
         for v in batch:
-            all_votes.append({"proposal_id": v["proposal"]["id"], "voter": v["voter"].lower(), "vp": float(v["vp"])})
+            all_votes.append({
+                "proposal_id": v["proposal"]["id"],
+                "voter": v["voter"].lower(),
+                "vp": float(v["vp"])
+            })
         if len(batch) < 1000:
             break
         time.sleep(0.2)
@@ -95,6 +88,35 @@ def fetch_live_snapshot_data(space: str, limit: int = 20):
     )
     df_voters["participation_rate"] = df_voters["proposals_voted"] / len(df_prop)
     return df_voters, df_prop
+
+@st.cache_data(show_spinner=False)
+def load_initial_data():
+    # Ưu tiên tìm file CSV thật trong thư mục data/ hoặc thư mục gốc
+    for v_path, p_path in [
+        ("data/real_dao_voters.csv", "data/real_dao_proposals.csv"),
+        ("real_dao_voters.csv", "real_dao_proposals.csv")
+    ]:
+        if os.path.exists(v_path):
+            df_voters = pd.read_csv(v_path)
+            df_proposals = pd.read_csv(p_path) if os.path.exists(p_path) else pd.DataFrame()
+            return df_voters, df_proposals, f"ENS DAO (ens.eth - Dữ liệu thật {len(df_voters)} ví)"
+
+    # Nếu chạy trên Cloud mà chưa up thư mục data/, tự động kéo dữ liệu thật từ Snapshot API
+    try:
+        df_voters, df_proposals = fetch_live_snapshot_data("ens.eth", limit=25)
+        return df_voters, df_proposals, f"ENS DAO (ens.eth - Trực tiếp Snapshot API, {len(df_voters)} ví)"
+    except Exception:
+        rng = np.random.default_rng(42)
+        vp = (rng.pareto(a=1.35, size=300) + 1.0) * 1000.0
+        part = rng.uniform(0.04, 0.85, size=300)
+        df_voters = pd.DataFrame({
+            "voter": [f"0x{i:040x}" for i in range(300)],
+            "max_vp": np.sort(vp)[::-1],
+            "avg_vp": np.sort(vp)[::-1],
+            "proposals_voted": np.maximum(1, (part * 25).astype(int)),
+            "participation_rate": part
+        })
+        return df_voters, pd.DataFrame(), "Dữ liệu mô phỏng Pareto dự phòng (Mất kết nối API)"
 
 # --- MÔ HÌNH ODE & ESS ---
 def payoffs(xA, xD, xC, p):
@@ -142,10 +164,7 @@ def run_network_sim_cached(
     participation = np.array(part_tuple, dtype=float)
     N = len(raw_vp)
 
-    if use_quadratic:
-        eff_base_vp = np.sqrt(raw_vp)
-    else:
-        eff_base_vp = raw_vp.copy()
+    eff_base_vp = np.sqrt(raw_vp) if use_quadratic else raw_vp.copy()
     norm_vp = eff_base_vp / np.sum(eff_base_vp)
 
     G = nx.Graph()
@@ -259,10 +278,11 @@ st.title("🏛️ Mô phỏng Động lực học Tiến hóa & Thông đồng t
 st.caption("Đề tài 2 • Mô hình Replicator Dynamics (ESS), Mạng lưới Ủy quyền lỏng (NetworkX) & Đối chiếu Smart Contract")
 
 if "df_voters" not in st.session_state:
-    df_v, df_p, src_name = load_local_or_default_data()
-    st.session_state["df_voters"] = df_v
-    st.session_state["df_proposals"] = df_p
-    st.session_state["data_source"] = src_name
+    with st.spinner("Đang nạp dữ liệu quản trị DAO..."):
+        df_v, df_p, src_name = load_initial_data()
+        st.session_state["df_voters"] = df_v
+        st.session_state["df_proposals"] = df_p
+        st.session_state["data_source"] = src_name
 
 # --- SIDEBAR: ĐIỀU CHỈNH THAM SỐ TRỰC TIẾP ---
 with st.sidebar:
@@ -318,27 +338,33 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
     st.subheader(f"Nguồn dữ liệu đang nạp: {st.session_state['data_source']}")
 
+    if "fetch_msg" in st.session_state:
+        st.success(st.session_state.pop("fetch_msg"))
+
     col_fetch1, col_fetch2 = st.columns([2, 1])
     with col_fetch1:
-        dao_input = st.text_input("Kéo trực tiếp dữ liệu DAO khác từ Snapshot API (ví dụ: ens.eth, arbitrumfoundation.eth, opcollective.eth):", value="ens.eth")
+        dao_input = st.text_input(
+            "Kéo trực tiếp dữ liệu DAO khác từ Snapshot API (ví dụ: ens.eth, arbitrumfoundation.eth, opcollective.eth):",
+            value="ens.eth"
+        )
     with col_fetch2:
         st.write("")
         st.write("")
         if st.button("🔄 Tải dữ liệu mới từ Snapshot"):
             with st.spinner(f"Đang gọi GraphQL API của {dao_input}..."):
                 try:
-                    df_v_new, df_p_new = fetch_live_snapshot_data(dao_input.strip(), limit=20)
+                    df_v_new, df_p_new = fetch_live_snapshot_data(dao_input.strip(), limit=25)
                     st.session_state["df_voters"] = df_v_new
                     st.session_state["df_proposals"] = df_p_new
-                    st.session_state["data_source"] = f"{dao_input.strip()} (Trực tiếp từ Snapshot API)"
-                    st.success(f"Đã tải thành công {len(df_v_new)} ví cử tri từ {dao_input}!")
+                    st.session_state["data_source"] = f"{dao_input.strip()} (Trực tiếp Snapshot API, {len(df_v_new)} ví)"
+                    st.session_state["fetch_msg"] = f"Đã tải thành công {len(df_v_new)} ví cử tri từ {dao_input.strip()}!"
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Lỗi tải API: {e}")
 
     df_voters = st.session_state["df_voters"]
     total_vp = df_voters["max_vp"].sum()
     top5_share = df_voters.head(5)["max_vp"].sum() / total_vp
-    top10_share = df_voters.head(10)["max_vp"].sum() / total_vp
     gini_val = gini_coefficient(df_voters["max_vp"].values)
     avg_part = df_voters["participation_rate"].mean()
 
@@ -346,7 +372,12 @@ with tab1:
     m1.metric("Tổng số ví duy nhất", f"{len(df_voters):,}")
     m2.metric("Tỷ lệ tham gia TB", f"{avg_part:.2%}")
     m3.metric("Hệ số bất bình đẳng Gini", f"{gini_val:.4f}")
-    m4.metric("Quyền lực Top 5 đại biểu", f"{top5_share:.2%}", delta="Vượt ngưỡng 50%!" if top5_share > 0.5 else "An toàn", delta_color="inverse")
+    m4.metric(
+        "Quyền lực Top 5 đại biểu",
+        f"{top5_share:.2%}",
+        delta="Vượt ngưỡng 50%!" if top5_share > 0.5 else "An toàn",
+        delta_color="inverse"
+    )
 
     c_left, c_right = st.columns(2)
     with c_left:
@@ -379,8 +410,8 @@ with tab1:
         st.pyplot(fig_lorenz)
         plt.close(fig_lorenz)
 
-    with st.expander("Xem bảng dữ liệu chi tiết 447 ví cử tri"):
-        st.dataframe(df_voters.head(50), use_container_width=True)
+    with st.expander(f"Xem bảng dữ liệu chi tiết {len(df_voters):,} ví cử tri"):
+        st.dataframe(df_voters, use_container_width=True)
 
 # ==============================================================================
 # TAB 2: MÔ HÌNH GIẢI TÍCH REPLICATOR DYNAMICS & ESS
@@ -471,7 +502,7 @@ with tab2:
 # TAB 3: MÔ PHỎNG MẠNG LƯỚI 1.000 VÒNG (NETWORKX)
 # ==============================================================================
 with tab3:
-    st.subheader(f"Mô phỏng ủy quyền bắc cầu qua {rounds} vòng trên {len(df_voters)} ví thật")
+    st.subheader(f"Mô phỏng ủy quyền bắc cầu qua {rounds} vòng trên {len(df_voters):,} ví thật")
 
     cap_val = (cap_pct / 100.0) if cap_pct > 0 else None
     with st.spinner("Đang chạy mô phỏng mạng lưới NetworkX..."):
@@ -556,10 +587,9 @@ with tab4:
 
     with col_gas2:
         st.markdown("**Trình ước tính chi phí Gas khi mở rộng quy mô On-chain:**")
-        sim_voters = st.slider("Số lượng cử tri tham gia mạng lưới", 50, 1000, 447, 50)
+        sim_voters = st.slider("Số lượng cử tri tham gia mạng lưới", 50, 1000, len(df_voters), 50)
         sim_rounds = st.slider("Số vòng lặp mô phỏng muốn đưa lên On-chain", 1, 50, 10, 1)
 
-        # Ước tính dựa trên đo đạc thực tế từ Remix (~72,000 gas/delegate + ~45,000 gas/update)
         gas_per_round = sim_voters * 72000
         total_gas = gas_per_round * sim_rounds
         block_limit = 30_000_000
