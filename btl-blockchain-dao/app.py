@@ -59,7 +59,6 @@ def fetch_live_snapshot_data(space: str, limit: int = 25):
     }
     """
     all_votes = []
-    # Đồng bộ tham số 25 đề xuất & tối đa 5.000 phiếu giống hệt file 01_fetch_data.py
     for skip in range(0, 5000, 1000):
         r2 = requests.post(
             SNAPSHOT_GRAPHQL_URL,
@@ -91,7 +90,6 @@ def fetch_live_snapshot_data(space: str, limit: int = 25):
 
 @st.cache_data(show_spinner=False)
 def load_initial_data():
-    # Ưu tiên tìm file CSV thật trong thư mục data/ hoặc thư mục gốc
     for v_path, p_path in [
         ("data/real_dao_voters.csv", "data/real_dao_proposals.csv"),
         ("real_dao_voters.csv", "real_dao_proposals.csv")
@@ -101,7 +99,6 @@ def load_initial_data():
             df_proposals = pd.read_csv(p_path) if os.path.exists(p_path) else pd.DataFrame()
             return df_voters, df_proposals, f"ENS DAO (ens.eth - Dữ liệu thật {len(df_voters)} ví)"
 
-    # Nếu chạy trên Cloud mà chưa up thư mục data/, tự động kéo dữ liệu thật từ Snapshot API
     try:
         df_voters, df_proposals = fetch_live_snapshot_data("ens.eth", limit=25)
         return df_voters, df_proposals, f"ENS DAO (ens.eth - Trực tiếp Snapshot API, {len(df_voters)} ví)"
@@ -272,11 +269,8 @@ def run_network_sim_cached(
     }
 
 # ==============================================================================
-# GIAO DIỆN CHÍNH STREAMLIT
+# KHỞI TẠO TRẠNG THÁI & CALLBACK ĐỒNG BỘ KỊCH BẢN
 # ==============================================================================
-st.title("🏛️ Mô phỏng Động lực học Tiến hóa & Thông đồng trong Quản trị DAO")
-st.caption("Đề tài 2 • Mô hình Replicator Dynamics (ESS), Mạng lưới Ủy quyền lỏng (NetworkX) & Đối chiếu Smart Contract")
-
 if "df_voters" not in st.session_state:
     with st.spinner("Đang nạp dữ liệu quản trị DAO..."):
         df_v, df_p, src_name = load_initial_data()
@@ -284,34 +278,55 @@ if "df_voters" not in st.session_state:
         st.session_state["df_proposals"] = df_p
         st.session_state["data_source"] = src_name
 
+default_sliders = {
+    "preset_box": "KB1: Hiện trạng (Phí vote cao)",
+    "c_v": 1.50,
+    "c_d": 0.10,
+    "c_c": 1.00,
+    "alpha": 0.45,
+    "cap_pct": 0,
+    "use_quadratic": False
+}
+for k_state, v_state in default_sliders.items():
+    if k_state not in st.session_state:
+        st.session_state[k_state] = v_state
+
+def on_preset_change():
+    choice = st.session_state["preset_box"]
+    if choice == "KB1: Hiện trạng (Phí vote cao)":
+        st.session_state.update({"c_v": 1.50, "c_d": 0.10, "c_c": 1.00, "alpha": 0.45, "cap_pct": 0, "use_quadratic": False})
+    elif choice == "KB2: Cá mập thao túng ủy quyền":
+        st.session_state.update({"c_v": 1.50, "c_d": 0.10, "c_c": 0.80, "alpha": 0.65, "cap_pct": 0, "use_quadratic": False})
+    elif choice == "KB3: Hoàn phí Gas + Trần ủy quyền 8%":
+        st.session_state.update({"c_v": 0.15, "c_d": 0.10, "c_c": 1.20, "alpha": 0.20, "cap_pct": 8, "use_quadratic": False})
+
+# ==============================================================================
+# GIAO DIỆN CHÍNH STREAMLIT
+# ==============================================================================
+st.title("🏛️ Mô phỏng Động lực học Tiến hóa & Thông đồng trong Quản trị DAO")
+st.caption("Đề tài 2 • Mô hình Replicator Dynamics (ESS), Mạng lưới Ủy quyền lỏng (NetworkX) & Đối chiếu Smart Contract")
+
 # --- SIDEBAR: ĐIỀU CHỈNH THAM SỐ TRỰC TIẾP ---
 with st.sidebar:
     st.header("⚙️ Bảng điều khiển Tham số")
 
-    preset = st.selectbox(
+    st.selectbox(
         "Chọn nhanh kịch bản mẫu:",
         [
-            "Tùy chỉnh thủ công",
             "KB1: Hiện trạng (Phí vote cao)",
             "KB2: Cá mập thao túng ủy quyền",
-            "KB3: Hoàn phí Gas + Trần ủy quyền 8%"
-        ]
+            "KB3: Hoàn phí Gas + Trần ủy quyền 8%",
+            "Tùy chỉnh thủ công"
+        ],
+        key="preset_box",
+        on_change=on_preset_change
     )
 
-    if preset == "KB1: Hiện trạng (Phí vote cao)":
-        def_cv, def_alpha, def_cap, def_qv = 1.50, 0.45, 0, False
-    elif preset == "KB2: Cá mập thao túng ủy quyền":
-        def_cv, def_alpha, def_cap, def_qv = 1.50, 0.65, 0, False
-    elif preset == "KB3: Hoàn phí Gas + Trần ủy quyền 8%":
-        def_cv, def_alpha, def_cap, def_qv = 0.15, 0.20, 8, False
-    else:
-        def_cv, def_alpha, def_cap, def_qv = 1.50, 0.45, 0, False
-
     st.subheader("1. Chi phí & Lợi ích (Payoff)")
-    c_v = st.slider("Chi phí tự bỏ phiếu (c_v)", 0.05, 3.00, def_cv, 0.05)
-    c_d = st.slider("Chi phí ủy quyền (c_d)", 0.00, 1.00, 0.10, 0.05)
-    c_c = st.slider("Chi phí phối hợp thông đồng (c_c)", 0.10, 3.00, 1.00, 0.10)
-    alpha = st.slider("Hệ số lôi kéo ủy quyền (alpha)", 0.00, 1.00, def_alpha, 0.05)
+    c_v = st.slider("Chi phí tự bỏ phiếu (c_v)", 0.05, 3.00, step=0.05, key="c_v")
+    c_d = st.slider("Chi phí ủy quyền (c_d)", 0.00, 1.00, step=0.05, key="c_d")
+    c_c = st.slider("Chi phí phối hợp thông đồng (c_c)", 0.10, 3.00, step=0.10, key="c_c")
+    alpha = st.slider("Hệ số lôi kéo ủy quyền (alpha)", 0.00, 1.00, step=0.05, key="alpha")
 
     with st.expander("Tham số vĩ mô DAO (R, L, B, k)"):
         R = st.number_input("Lợi ích quản trị minh bạch (R)", value=10.0, step=1.0)
@@ -321,8 +336,8 @@ with st.sidebar:
 
     st.subheader("2. Cơ chế phòng vệ Mạng lưới")
     rounds = st.slider("Số vòng mô phỏng NetworkX", 200, 1000, 1000, 100)
-    cap_pct = st.slider("Trần ủy quyền tối đa (% tổng quyền)", 0, 30, def_cap, 1, help="0% = Không giới hạn trần ủy quyền")
-    use_quadratic = st.checkbox("Áp dụng Quadratic Voting (Căn bậc hai VP)", value=def_qv)
+    cap_pct = st.slider("Trần ủy quyền tối đa (% tổng quyền)", 0, 30, step=1, key="cap_pct", help="0% = Không giới hạn trần ủy quyền")
+    use_quadratic = st.checkbox("Áp dụng Quadratic Voting (Căn bậc hai VP)", key="use_quadratic")
 
 # --- TABS NỘI DUNG ---
 tab1, tab2, tab3, tab4 = st.tabs([
@@ -513,10 +528,11 @@ with tab3:
             delegation_cap=cap_val, use_quadratic=use_quadratic
         )
 
+    tail_window = min(200, rounds)
     n1, n2, n3, n4 = st.columns(4)
     n1.metric("Tỷ lệ tấn công thành công", f"{np.mean(res_net['wins']):.2%}")
-    n2.metric("Quyền biểu quyết phe C (TB)", f"{np.mean(res_net['wC'][-100:]):.2%}")
-    n3.metric("Hệ số Gini hiệu dụng (TB)", f"{np.mean(res_net['gini'][-100:]):.4f}")
+    n2.metric("Quyền biểu quyết phe C (TB)", f"{np.mean(res_net['wC'][-tail_window:]):.2%}")
+    n3.metric("Hệ số Gini hiệu dụng (TB)", f"{np.mean(res_net['gini'][-tail_window:]):.4f}")
     n4.metric("Cử tri Active vòng cuối", f"{res_net['xA'][-1]:.2%}")
 
     col_net1, col_net2 = st.columns([1.25, 1])
@@ -574,13 +590,13 @@ with tab4:
 
     col_gas1, col_gas2 = st.columns(2)
     with col_gas1:
-        st.markdown("""
+        st.markdown(f"""
         **Phân tách kiến trúc triển khai (Mục 5):**
         * **On-chain (`LiquidGovernance.sol`):** Chỉ lưu trữ trạng thái cốt lõi (số dư token, địa chỉ nhận ủy quyền, kết quả bỏ phiếu cuối cùng) để đảm bảo tính minh bạch và bất biến.
         * **Off-chain (`Python / Snapshot`):** Thực hiện giải hệ phương trình vi phân ODE và mô phỏng tiến hóa mạng lưới nhiều vòng lặp.
         
         **3 lý do kỹ thuật không chạy mô phỏng trực tiếp trên Blockchain:**
-        1. **Giới hạn Block Gas Limit (30 triệu gas/block):** Duyệt đệ quy cây ủy quyền sâu hoặc lặp 1.000 vòng trên 447 ví sẽ vượt trần gas và bị hoàn tác giao dịch (*Out of Gas*).
+        1. **Giới hạn Block Gas Limit (30 triệu gas/block):** Duyệt đệ quy cây ủy quyền sâu hoặc lặp 1.000 vòng trên {len(df_voters):,} ví sẽ vượt trần gas và bị hoàn tác giao dịch (*Out of Gas*).
         2. **Chi phí giao dịch đắt đỏ:** Mỗi lượt gọi `delegate()` (kèm kiểm tra chu trình) tốn ~72.000 gas, khiến cử tri nhỏ lẻ nảy sinh tâm lý thờ ơ.
         3. **Tính tất định của EVM:** Máy ảo Ethereum không hỗ trợ số thực dấu phẩy động (`float`), giải tích vi phân hay chọn ngẫu nhiên nội tại (quy tắc Fermi).
         """)
