@@ -323,16 +323,16 @@ with st.sidebar:
     )
 
     st.subheader("1. Chi phí & Lợi ích (Payoff)")
-    c_v = st.slider("Chi phí tự bỏ phiếu (c_v)", 0.05, 3.00, step=0.05, key="c_v")
-    c_d = st.slider("Chi phí ủy quyền (c_d)", 0.00, 1.00, step=0.05, key="c_d")
-    c_c = st.slider("Chi phí phối hợp thông đồng (c_c)", 0.10, 3.00, step=0.10, key="c_c")
-    alpha = st.slider("Hệ số lôi kéo ủy quyền (alpha)", 0.00, 1.00, step=0.05, key="alpha")
+    c_v = st.slider(r"Chi phí tự bỏ phiếu ($c_v$)", 0.05, 3.00, step=0.05, key="c_v")
+    c_d = st.slider(r"Chi phí ủy quyền ($c_d$)", 0.00, 1.00, step=0.05, key="c_d")
+    c_c = st.slider(r"Chi phí phối hợp thông đồng ($c_c$)", 0.10, 3.00, step=0.10, key="c_c")
+    alpha = st.slider(r"Hệ số lôi kéo ủy quyền ($\alpha$)", 0.00, 1.00, step=0.05, key="alpha")
 
-    with st.expander("Tham số vĩ mô DAO (R, L, B, k)"):
-        R = st.number_input("Lợi ích quản trị minh bạch (R)", value=10.0, step=1.0)
-        L = st.number_input("Thiệt hại khi quỹ bị rút (L)", value=15.0, step=1.0)
-        B = st.number_input("Ngân sách trục lợi chia nhóm C (B)", value=8.0, step=1.0)
-        k_sens = st.number_input("Độ nhạy hàm thắng cử Sigmoid (k)", value=8.0, step=1.0)
+    with st.expander(r"Tham số vĩ mô DAO ($R, L, B, k$)"):
+        R = st.number_input(r"Lợi ích quản trị minh bạch ($R$)", value=10.0, step=1.0)
+        L = st.number_input(r"Thiệt hại khi quỹ bị rút ($L$)", value=15.0, step=1.0)
+        B = st.number_input(r"Ngân sách trục lợi chia nhóm C ($B$)", value=8.0, step=1.0)
+        k_sens = st.number_input(r"Độ nhạy hàm thắng cử Sigmoid ($k$)", value=8.0, step=1.0)
 
     st.subheader("2. Cơ chế phòng vệ Mạng lưới")
     rounds = st.slider("Số vòng mô phỏng NetworkX", 200, 1000, 1000, 100)
@@ -437,14 +437,14 @@ with tab2:
     active_init = float(np.clip(np.mean(df_voters["participation_rate"] >= 0.20), 0.05, 0.45))
     c_init1, c_init2 = st.columns(2)
     with c_init1:
-        use_real_x0 = st.checkbox("Hiệu chỉnh x(0) tự động từ dữ liệu DAO thực tế", value=True)
+        use_real_x0 = st.checkbox(r"Hiệu chỉnh $x(0)$ tự động từ dữ liệu DAO thực tế", value=True)
     with c_init2:
-        xC_0 = st.slider("Tỷ lệ mầm mống thông đồng ban đầu xC(0)", 0.01, 0.30, 0.05, 0.01)
+        xC_0 = st.slider(r"Tỷ lệ mầm mống thông đồng ban đầu $x_C(0)$", 0.01, 0.30, 0.05, 0.01)
 
     if use_real_x0:
         xA_0 = active_init
     else:
-        xA_0 = st.slider("Tỷ lệ cử tri tích cực ban đầu xA(0)", 0.05, 0.80, 0.35, 0.05)
+        xA_0 = st.slider(r"Tỷ lệ cử tri tích cực ban đầu $x_A(0)$", 0.05, 0.80, 0.35, 0.05)
     xD_0 = max(0.0, 1.0 - xA_0 - xC_0)
     x0 = [xA_0, xD_0, xC_0]
 
@@ -458,24 +458,24 @@ with tab2:
     eigvals, is_ess = check_ess_stability(x_end, ode_params)
 
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Cử tri tích cực cuối (xA*)", f"{x_end[0]:.2%}")
-    k2.metric("Ủy quyền thụ động cuối (xD*)", f"{x_end[1]:.2%}")
-    k3.metric("Nhóm thông đồng cuối (xC*)", f"{x_end[2]:.2%}")
+    k1.metric(r"Cử tri tích cực cuối ($x_A^*$)", f"{x_end[0]:.2%}")
+    k2.metric(r"Ủy quyền thụ động cuối ($x_D^*$)", f"{x_end[1]:.2%}")
+    k3.metric(r"Nhóm thông đồng cuối ($x_C^*$)", f"{x_end[2]:.2%}")
     k4.metric("Xác suất tấn công thắng", f"{p_win_end:.2%}")
 
     if is_ess:
-        st.success(f"✅ Điểm cân bằng x* = ({x_end[0]:.3f}, {x_end[1]:.3f}, {x_end[2]:.3f}) là **Chiến lược ổn định tiến hóa (ESS)** vì mọi giá trị riêng Jacobian đều có phần thực âm: λ = [{eigvals[0]:.3f}, {eigvals[1]:.3f}].")
+        st.success(rf"✅ Điểm cân bằng $x^* = ({x_end[0]:.3f}, {x_end[1]:.3f}, {x_end[2]:.3f})$ là **Chiến lược ổn định tiến hóa (ESS)** vì mọi giá trị riêng Jacobian đều có phần thực âm: $\lambda = [{eigvals[0]:.3f}, {eigvals[1]:.3f}]$.")
     else:
-        st.warning(f"⚠️ Hệ đang dịch chuyển (chưa hội tụ hẳn tại t=30): λ = [{eigvals[0]:.3f}, {eigvals[1]:.3f}].")
+        st.warning(rf"⚠️ Hệ đang dịch chuyển (chưa hội tụ hẳn tại $t=30$): $\lambda = [{eigvals[0]:.3f}, {eigvals[1]:.3f}]$.")
 
     col_ode1, col_ode2 = st.columns([1.3, 1])
     with col_ode1:
         fig_ode, ax_ode = plt.subplots(figsize=(7.5, 4.5))
-        ax_ode.plot(sol.t, sol.y[0] * 100, label="Active Voters (xA)", color="#1f77b4", lw=2.5)
-        ax_ode.plot(sol.t, sol.y[1] * 100, label="Delegating Free-riders (xD)", color="#ff7f0e", lw=2.5)
-        ax_ode.plot(sol.t, sol.y[2] * 100, label="Colluding Attackers (xC)", color="#d62728", lw=2.5)
+        ax_ode.plot(sol.t, sol.y[0] * 100, label=r"Active Voters ($x_A$)", color="#1f77b4", lw=2.5)
+        ax_ode.plot(sol.t, sol.y[1] * 100, label=r"Delegating Free-riders ($x_D$)", color="#ff7f0e", lw=2.5)
+        ax_ode.plot(sol.t, sol.y[2] * 100, label=r"Colluding Attackers ($x_C$)", color="#d62728", lw=2.5)
         ax_ode.set_title("Quỹ đạo tiến hóa 3 nhóm chiến lược theo thời gian", fontweight="bold")
-        ax_ode.set_xlabel("Thời gian tiến hóa (t)")
+        ax_ode.set_xlabel(r"Thời gian tiến hóa ($t$)")
         ax_ode.set_ylabel("Tỷ lệ quần thể (%)")
         ax_ode.set_ylim(-2, 104)
         ax_ode.grid(True, linestyle="--", alpha=0.5)
@@ -500,13 +500,13 @@ with tab2:
                     U[i, j], V[i, j] = np.nan, np.nan
         ax_ph.quiver(XA, XC, U, V, color="#2c3e50", alpha=0.75)
         ax_ph.plot(sol.y[0], sol.y[2], color="#d62728", lw=2.2, label="Quỹ đạo hiện tại")
-        ax_ph.scatter([x_end[0]], [x_end[2]], color="gold", edgecolor="black", s=90, zorder=5, label="Điểm hội tụ x*")
+        ax_ph.scatter([x_end[0]], [x_end[2]], color="gold", edgecolor="black", s=90, zorder=5, label=r"Điểm hội tụ $x^*$")
         ax_ph.plot([0, 1], [1, 0], "k--", lw=1)
         ax_ph.fill_between([0, 1], [1, 0], 1, color="#f2f2f2")
         ax_ph.set_xlim(0, 1)
         ax_ph.set_ylim(0, 1)
-        ax_ph.set_xlabel("Tỷ lệ Active Voters (xA)")
-        ax_ph.set_ylabel("Tỷ lệ Colluding (xC)")
+        ax_ph.set_xlabel(r"Tỷ lệ Active Voters ($x_A$)")
+        ax_ph.set_ylabel(r"Tỷ lệ Colluding ($x_C$)")
         ax_ph.set_title("Giản đồ pha (Phase Portrait)", fontweight="bold")
         ax_ph.legend(loc="upper right", fontsize=8.5)
         plt.tight_layout()
@@ -549,8 +549,8 @@ with tab3:
 
         smooth_gini = pd.Series(res_net["gini"]).rolling(15, min_periods=1).mean()
         ax2.plot(r_axis, smooth_gini, color="#ff7f0e", lw=2, label="Hệ số bất bình đẳng Gini hiệu dụng")
-        ax2.plot(r_axis, res_net["xA"], color="#1f77b4", lw=1.8, label="Tỷ lệ cử tri Active (xA)")
-        ax2.set_xlabel("Vòng bỏ phiếu (t)")
+        ax2.plot(r_axis, res_net["xA"], color="#1f77b4", lw=1.8, label=r"Tỷ lệ cử tri Active ($x_A$)")
+        ax2.set_xlabel(r"Vòng bỏ phiếu ($t$)")
         ax2.set_ylabel("Giá trị chỉ số")
         ax2.legend(loc="best", fontsize=8.5)
         ax2.grid(True, linestyle="--", alpha=0.5)
