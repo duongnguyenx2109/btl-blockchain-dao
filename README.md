@@ -102,13 +102,3 @@ btl-blockchain-dao/
      - *Tab 4 (Smart Contract & Chi phí Gas):* Ước tính chi phí Gas EVM khi mở rộng quy mô cử tri và số vòng lặp on-chain.
 
 ---
-
-### 3. Tóm tắt kết quả thực nghiệm & Kiến trúc Hybrid
-
-- **Thực trạng dữ liệu ENS DAO (`447 ví`):** Tỷ lệ tham gia bỏ phiếu trung bình chỉ đạt **23,04%**, hệ số bất bình đẳng quyền lực **Gini = 0,9556**, và **Top 5 đại biểu lớn nhất nắm 56,49%** tổng quyền biểu quyết (vượt ngưỡng quá bán 50%).
-- **Kết quả giải tích ODE & ESS:**
-  - *Kịch bản hiện trạng (c<sub>v</sub> = 1,5; α = 0,45) & Tấn công (α = 0,65):* Hệ hội tụ về điểm cân bằng ESS bị thâu tóm bởi nhóm thông đồng (x<sub>C</sub> = 100%, xác suất tấn công thành công **99,97%**).
-  - *Kịch bản hoàn gas & hạn chế lôi kéo (c<sub>v</sub> = 0,15; α = 0,20):* Hệ hội tụ về trạng thái cân bằng ESS an toàn (x<sub>A</sub> = 13,08%; x<sub>D</sub> = 86,92%; x<sub>C</sub> = 0%), xác suất tấn công giảm còn **0,54%**.
-- **Kết quả mô phỏng mạng lưới 1.000 vòng trên 447 ví thật:** Do phân phối token thực tế bị phân hóa "cá mập" cực đoan, giải pháp hoàn gas kết hợp **Trần ủy quyền 8%** giúp giảm tỷ lệ tấn công thành công từ **99,80%** xuống **77,20%** và giảm hệ số Gini hiệu dụng từ `0,9549` xuống `0,9207`.
-- **Giải thích ranh giới On-chain vs Off-chain:** Thực nghiệm trên Remix cho thấy mỗi giao dịch `delegate` (kèm duyệt vòng lặp phát hiện chu trình) và `vote` (đệ quy tính tổng quyền lực cây ủy quyền) tiêu tốn hàng chục nghìn đơn vị Gas. Do đó, việc chạy mô phỏng tiến hóa 1.000 vòng trên đồ thị 447 nút không thể thực thi trực tiếp trên EVM (vượt *Block Gas Limit* và thiếu tính toán số thực/ngẫu nhiên), dẫn tới kiến trúc chuẩn cho DAO thực tế là **Mô phỏng & giám sát rủi ro Off-chain kết hợp Thực thi bỏ phiếu & lưu trữ trạng thái On-chain**.
-
